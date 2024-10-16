@@ -66,6 +66,37 @@ func handleRequest( conn net.Conn ) {
 
   fmt.Printf( "Received %s request for %s using %s\n", method, path, version )
 
+  headers := make( map[string]string )
+
+  for {
+    line, err := reader.ReadString('\n')
+    if err != nil {
+      fmt.Println( "Error reading headers: ", err )
+      return
+    }
+
+    line = strings.TrimRight( line, "\r\n" )
+
+    // empty line means we are done with the headers
+    if line == "" {
+      break
+    }
+
+    parts := strings.SplitN( line, ":", 2 )
+
+    if len( parts ) == 2 {
+      key := strings.TrimSpace( parts[ 0 ] )
+      value := strings.TrimSpace( parts[ 1 ] )
+      headers[ key ] = value
+    }
+  }
+
+  fmt.Println( "Parsed headers:" )
+
+  for key, value := range headers {
+    fmt.Printf( "%s: %s\n", key, value )
+  }
+
   response := "HTTP/1.1 200 OK\r\n" +
   "Content-Type: text/plain\r\n" +
   "Connection: close\r\n" +
@@ -74,3 +105,4 @@ func handleRequest( conn net.Conn ) {
 
   conn.Write( []byte( response ) )
 }
+
