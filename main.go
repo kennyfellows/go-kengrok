@@ -66,13 +66,35 @@ func handleRequest( conn net.Conn ) {
 
   fmt.Printf( "Received %s request for %s using %s\n", method, path, version )
 
+  headers, err := parseHeaders( reader )
+
+  if err != nil {
+    fmt.Println( "Error parsing headers: ", err )
+  }
+
+  fmt.Println( "Parsed headers:" )
+
+  for key, value := range headers {
+    fmt.Printf( "%s: %s\n", key, value )
+  }
+
+  response := "HTTP/1.1 200 OK\r\n" +
+  "Content-Type: text/plain\r\n" +
+  "Connection: close\r\n" +
+  "\r\n" +
+  "Received new request\r\n"
+
+  conn.Write( []byte( response ) )
+}
+
+func parseHeaders( reader *bufio.Reader ) ( map[string]string, error ) {
   headers := make( map[string]string )
 
   for {
     line, err := reader.ReadString('\n')
     if err != nil {
       fmt.Println( "Error reading headers: ", err )
-      return
+      return nil, err
     }
 
     line = strings.TrimRight( line, "\r\n" )
@@ -91,18 +113,5 @@ func handleRequest( conn net.Conn ) {
     }
   }
 
-  fmt.Println( "Parsed headers:" )
-
-  for key, value := range headers {
-    fmt.Printf( "%s: %s\n", key, value )
-  }
-
-  response := "HTTP/1.1 200 OK\r\n" +
-  "Content-Type: text/plain\r\n" +
-  "Connection: close\r\n" +
-  "\r\n" +
-  "Received new request\r\n"
-
-  conn.Write( []byte( response ) )
+  return headers, nil
 }
-
