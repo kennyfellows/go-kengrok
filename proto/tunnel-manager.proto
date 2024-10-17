@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package tunnel_manager;
+
+option go_package = "go-kengrok/proto/tunnel-manager";
+
+service TunnelManager {
+  rpc CreateTunnel (CreateTunnelRequest) returns (CreateTunnelResponse) {}
+}
+
+message CreateTunnelRequest {
+  string destination_port = 1;
+}
+
+message CreateTunnelResponse {
+  string tunnel_id = 1;
+}
