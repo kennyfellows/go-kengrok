@@ -7,6 +7,8 @@ import (
   "net"
   "bufio"
   "strings"
+  "io"
+  "time"
 )
 
 func main() {
@@ -45,6 +47,8 @@ func validateArguments( arguments []string ) string {
 
 func handleRequest( conn net.Conn ) {
   defer conn.Close()
+	// Set a read deadline to prevent hanging on slow clients
+	conn.SetReadDeadline( time.Now().Add( 10 * time.Second ) )
 
   reader := bufio.NewReader( conn )
 
@@ -87,13 +91,38 @@ func handleRequest( conn net.Conn ) {
   conn.Write( []byte( response ) )
 }
 
+/**
+* This function handles a situation where the headers
+* arent all passed in the same TCP segment
+*/
+func readLine( reader *bufio.Reader ) ( string, error ) {
+  var line string
+
+  for {
+    segment, isPrefix, err := reader.ReadLine()
+    if err != nil {
+      return "", err
+    }
+
+    line += string( segment )
+
+    if !isPrefix {
+      return strings.TrimSpace( line ), nil
+    }
+  }
+}
+
 func parseHeaders( reader *bufio.Reader ) ( map[string]string, error ) {
   headers := make( map[string]string )
 
   for {
-    line, err := reader.ReadString('\n')
+    line, err := readLine( reader )
     if err != nil {
-      fmt.Println( "Error reading headers: ", err )
+
+      if err == io.EOF {
+        return headers, nil
+      }
+
       return nil, err
     }
 
