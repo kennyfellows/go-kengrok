@@ -27,11 +27,11 @@ func main() {
 
 	defer cancel()
 
-	r, err := c.CreateTunnel( ctx, &pb.CreateTunnelRequest{DestinationPort: "4444"} )
+	r, err := c.CreateTunnel( ctx, &pb.CreateTunnelRequest{Subdomain: "foobars"} )
 
   if err != nil {
 		log.Fatalf("could not create tunnel: %v", err)
 	}
 
-  log.Printf("Tunnel created: %s", r.GetTunnelId())
+  log.Printf("Tunnel created: %v", r.GetPort() )
 }

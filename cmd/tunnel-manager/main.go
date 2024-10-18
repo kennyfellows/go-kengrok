@@ -14,9 +14,9 @@ type server struct {
 }
 
 func (s *server) CreateTunnel (ctx context.Context, req *pb.CreateTunnelRequest)(*pb.CreateTunnelResponse, error) {
-  log.Printf("Received: %v", req.GetDestinationPort() )
+  log.Printf("Received: %v", req.GetSubdomain() )
 
-  return &pb.CreateTunnelResponse{ TunnelId: "tunnel-" + req.GetDestinationPort() }, nil
+  return &pb.CreateTunnelResponse{ Port: 4567 }, nil
 }
 
 func main() {

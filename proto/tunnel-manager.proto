@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package tunnel_manager;
 
-option go_package = "go-kengrok/proto/tunnel-manager";
+option go_package = "proto/tunnel-manager";
 
 service TunnelManager {
   rpc CreateTunnel (CreateTunnelRequest) returns (CreateTunnelResponse) {}
