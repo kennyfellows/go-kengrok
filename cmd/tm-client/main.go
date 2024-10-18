@@ -27,7 +27,7 @@ func main() {
 
 	defer cancel()
 
-	r, err := c.CreateTunnel( ctx, &pb.CreateTunnelRequest{Subdomain: "foobars"} )
+	r, err := c.RequestTunnel( ctx, &pb.RequestTunnelRequest{Subdomain: "foobars"} )
 
   if err != nil {
 		log.Fatalf("could not create tunnel: %v", err)

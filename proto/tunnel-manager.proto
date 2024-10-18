@@ -5,13 +5,13 @@ package tunnel_manager;
 option go_package = "proto/tunnel-manager";
 
 service TunnelManager {
-  rpc CreateTunnel (CreateTunnelRequest) returns (CreateTunnelResponse) {}
+  rpc RequestTunnel (RequestTunnelRequest) returns (RequestTunnelResponse) {}
 }
 
-message CreateTunnelRequest {
+message RequestTunnelRequest {
   string subdomain = 1;
 }
 
-message CreateTunnelResponse {
+message RequestTunnelResponse {
   int32 port = 1;
 }

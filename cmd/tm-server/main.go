@@ -13,10 +13,10 @@ type server struct {
   pb.UnimplementedTunnelManagerServer
 }
 
-func (s *server) CreateTunnel (ctx context.Context, req *pb.CreateTunnelRequest)(*pb.CreateTunnelResponse, error) {
+func (s *server) RequestTunnel (ctx context.Context, req *pb.RequestTunnelRequest)(*pb.RequestTunnelResponse, error) {
   log.Printf("Received: %v", req.GetSubdomain() )
 
-  return &pb.CreateTunnelResponse{ Port: 4567 }, nil
+  return &pb.RequestTunnelResponse{ Port: 4567 }, nil
 }
 
 func main() {
@@ -34,5 +34,3 @@ func main() {
     log.Fatalf( "Failed to serve: %v", err )
   }
 }
-
-

@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TunnelManagerClient interface {
-	CreateTunnel(ctx context.Context, in *CreateTunnelRequest, opts ...grpc.CallOption) (*CreateTunnelResponse, error)
+	RequestTunnel(ctx context.Context, in *RequestTunnelRequest, opts ...grpc.CallOption) (*RequestTunnelResponse, error)
 }
 
 type tunnelManagerClient struct {
@@ -33,9 +33,9 @@ func NewTunnelManagerClient(cc grpc.ClientConnInterface) TunnelManagerClient {
 	return &tunnelManagerClient{cc}
 }
 
-func (c *tunnelManagerClient) CreateTunnel(ctx context.Context, in *CreateTunnelRequest, opts ...grpc.CallOption) (*CreateTunnelResponse, error) {
-	out := new(CreateTunnelResponse)
-	err := c.cc.Invoke(ctx, "/tunnel_manager.TunnelManager/CreateTunnel", in, out, opts...)
+func (c *tunnelManagerClient) RequestTunnel(ctx context.Context, in *RequestTunnelRequest, opts ...grpc.CallOption) (*RequestTunnelResponse, error) {
+	out := new(RequestTunnelResponse)
+	err := c.cc.Invoke(ctx, "/tunnel_manager.TunnelManager/RequestTunnel", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (c *tunnelManagerClient) CreateTunnel(ctx context.Context, in *CreateTunnel
 // All implementations must embed UnimplementedTunnelManagerServer
 // for forward compatibility
 type TunnelManagerServer interface {
-	CreateTunnel(context.Context, *CreateTunnelRequest) (*CreateTunnelResponse, error)
+	RequestTunnel(context.Context, *RequestTunnelRequest) (*RequestTunnelResponse, error)
 	mustEmbedUnimplementedTunnelManagerServer()
 }
 
@@ -54,8 +54,8 @@ type TunnelManagerServer interface {
 type UnimplementedTunnelManagerServer struct {
 }
 
-func (UnimplementedTunnelManagerServer) CreateTunnel(context.Context, *CreateTunnelRequest) (*CreateTunnelResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateTunnel not implemented")
+func (UnimplementedTunnelManagerServer) RequestTunnel(context.Context, *RequestTunnelRequest) (*RequestTunnelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestTunnel not implemented")
 }
 func (UnimplementedTunnelManagerServer) mustEmbedUnimplementedTunnelManagerServer() {}
 
@@ -70,20 +70,20 @@ func RegisterTunnelManagerServer(s grpc.ServiceRegistrar, srv TunnelManagerServe
 	s.RegisterService(&TunnelManager_ServiceDesc, srv)
 }
 
-func _TunnelManager_CreateTunnel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateTunnelRequest)
+func _TunnelManager_RequestTunnel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestTunnelRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TunnelManagerServer).CreateTunnel(ctx, in)
+		return srv.(TunnelManagerServer).RequestTunnel(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/tunnel_manager.TunnelManager/CreateTunnel",
+		FullMethod: "/tunnel_manager.TunnelManager/RequestTunnel",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TunnelManagerServer).CreateTunnel(ctx, req.(*CreateTunnelRequest))
+		return srv.(TunnelManagerServer).RequestTunnel(ctx, req.(*RequestTunnelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -96,8 +96,8 @@ var TunnelManager_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*TunnelManagerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateTunnel",
-			Handler:    _TunnelManager_CreateTunnel_Handler,
+			MethodName: "RequestTunnel",
+			Handler:    _TunnelManager_RequestTunnel_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
