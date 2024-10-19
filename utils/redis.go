@@ -25,7 +25,7 @@ func initRedisClient( addr string ) *redis.Client {
     log.Fatalf( "Failed to connect to Redis: %v", err )
   }
 
-  log.Println("Successfull connected to Redis")
+  log.Println("Successfully connected to Redis")
 
   return redisClient
 }

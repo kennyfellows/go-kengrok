@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"fmt"
 	pb "go-kengrok/proto/tunnel-manager"
 	"log"
 	"net"
-  "fmt"
+
+	"go-kengrok/utils"
 
 	"google.golang.org/grpc"
-  "go-kengrok/utils"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type server struct {
@@ -28,7 +31,6 @@ func subdomainInUse( subdomain string ) bool {
   return exists == 1
 }
 
-
 func savePortMapping( subdomain string, port int32 ) ( ok bool, err error ) {
   redisClient := utils.GetRedisClient()
   ctx := context.Background()
@@ -45,7 +47,7 @@ func (s *server) RequestTunnel (ctx context.Context, req *pb.RequestTunnelReques
   subdomainIsInUse := subdomainInUse( subdomain )
 
   if subdomainIsInUse {
-    log.Printf("Subdomain is already in use")
+    return nil, status.Error( codes.InvalidArgument, "Subdomain is already in use" )
   } else {
     savePortMapping( subdomain, port )
   }
