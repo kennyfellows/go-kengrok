@@ -5,17 +5,52 @@ import (
 	pb "go-kengrok/proto/tunnel-manager"
 	"log"
 	"net"
+  "fmt"
 
 	"google.golang.org/grpc"
+  "go-kengrok/utils"
 )
 
 type server struct {
   pb.UnimplementedTunnelManagerServer
 }
 
-func (s *server) RequestTunnel (ctx context.Context, req *pb.RequestTunnelRequest)(*pb.RequestTunnelResponse, error) {
-  log.Printf("Received: %v", req.GetSubdomain() )
+func subdomainInUse( subdomain string ) bool {
+  redisClient := utils.GetRedisClient()
+  ctx := context.Background()
+  key := fmt.Sprintf( "kengrok-map:%s", subdomain )
+  exists, err := redisClient.Exists( ctx, key ).Result()
 
+  if err != nil {
+    log.Fatal("Error checking if subdomain is already in use")
+  }
+
+  return exists == 1
+}
+
+
+func savePortMapping( subdomain string, port int32 ) ( ok bool, err error ) {
+  redisClient := utils.GetRedisClient()
+  ctx := context.Background()
+  key := fmt.Sprintf( "kengrok-map:%s", subdomain )
+  redisClient.Set( ctx, key, port, 0 ).Err()
+
+  return true, nil
+}
+
+func (s *server) RequestTunnel (ctx context.Context, req *pb.RequestTunnelRequest)(*pb.RequestTunnelResponse, error) {
+  subdomain := req.GetSubdomain()
+  port := req.GetPort()
+
+  subdomainIsInUse := subdomainInUse( subdomain )
+
+  if subdomainIsInUse {
+    log.Printf("Subdomain is already in use")
+  } else {
+    savePortMapping( subdomain, port )
+  }
+
+  log.Printf("Received mapping request for: %v -> %v", subdomain, port )
   return &pb.RequestTunnelResponse{ Port: 4567 }, nil
 }
 

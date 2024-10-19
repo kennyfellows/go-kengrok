@@ -9,12 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-  "time"
-  "strconv"
 
-  "google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc"
-	pb "go-kengrok/proto/tunnel-manager"
+	"go-kengrok/utils"
+
 	"golang.org/x/crypto/ssh"
 )
 
@@ -45,16 +42,10 @@ func (tun *ReverseTunnel) Start( subdomain string ) (int, error) {
 	defer listener.Close()
 
 	_, portStr, _ := net.SplitHostPort(listener.Addr().String())
+	port := 0
+	fmt.Sscanf(portStr, "%d", &port)
 
-  portInt, err := strconv.Atoi(portStr)
-
-	if err != nil {
-		log.Fatalf("Failed to parse port number: %v", err)
-	}
-
-	// Convert to int32
-	port := int32(portInt)
-  makePortMapRequest( subdomain, port )
+  savePortMapping( subdomain, port )
 
 	log.Printf("Reverse tunnel established on remote port: %v", port)
 
@@ -64,7 +55,7 @@ func (tun *ReverseTunnel) Start( subdomain string ) (int, error) {
 		if err != nil {
 			log.Println("Error accepting connection", err)
 			if err == io.EOF {
-				return portInt, fmt.Errorf("SSH connection closed")
+				return port, fmt.Errorf("SSH connection closed")
 			}
 			continue
 		}
@@ -73,31 +64,27 @@ func (tun *ReverseTunnel) Start( subdomain string ) (int, error) {
 	}
 }
 
-func makePortMapRequest( subdomain string, port int32 ) {
-  conn, err := grpc.NewClient("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+func savePortMapping( subdomain string, port int ) ( ok bool, err error ) {
+  redisClient := utils.GetRedisClient()
+
+  ctx := context.Background()
+  key := fmt.Sprintf( "kengrok-map:%s", subdomain )
+  redisClient.Set( ctx, key, port, 0 ).Err()
+
+  return true, nil
+}
+
+func subdomainInUse( subdomain string ) bool {
+  redisClient := utils.GetRedisClient()
+  ctx := context.Background()
+  key := fmt.Sprintf( "kengrok-map:%s", subdomain )
+  exists, err := redisClient.Exists( ctx, key ).Result()
 
   if err != nil {
-    fmt.Println( "Error connecting to grpc server ", err.Error() )
+    log.Fatal("Error checking if subdomain is already in use")
   }
 
-  defer conn.Close()
-
-  c := pb.NewTunnelManagerClient(conn)
-
-  ctx, cancel := context.WithTimeout( context.Background(), time.Second )
-
-  defer cancel()
-
-  r, err := c.RequestTunnel( ctx, &pb.RequestTunnelRequest{
-    Subdomain: subdomain,
-    Port: port,
-  })
-
-  if err != nil {
-    log.Fatalf("could not create tunnel: %v", err)
-  }
-
-  log.Printf("Tunnel created: %v", r.GetPort() )
+  return exists == 1
 }
 
 func (tun *ReverseTunnel) handleConnection(remoteConn net.Conn) {
@@ -134,6 +121,12 @@ func getSSHKey(keyPath string) ssh.AuthMethod {
 
 func main() {
   subdomain := os.Args[1]
+
+  isInUse := subdomainInUse( subdomain )
+
+  if isInUse {
+    log.Fatalf( "Subdomain %s is already in use", subdomain )
+  }
 
 	keyPath := "/Users/kfellows/.ssh/id_rsa"
 	authMethod := getSSHKey(keyPath)
@@ -176,5 +169,3 @@ func main() {
 
 	fmt.Println("Shutting down...")
 }
-
-
