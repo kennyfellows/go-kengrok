@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	pb "go-kengrok/proto/tunnel-manager"
+	pb "go-kengrok/proto/proxy-manager"
 	"log"
 	"net"
 
@@ -12,10 +12,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+  "google.golang.org/protobuf/types/known/emptypb"
 )
 
 type server struct {
-  pb.UnimplementedTunnelManagerServer
+  pb.UnimplementedProxyManagerServer
 }
 
 func subdomainInUse( subdomain string ) bool {
@@ -40,7 +41,7 @@ func savePortMapping( subdomain string, port int32 ) ( ok bool, err error ) {
   return true, nil
 }
 
-func (s *server) RequestTunnel (ctx context.Context, req *pb.RequestTunnelRequest)(*pb.RequestTunnelResponse, error) {
+func (s *server) StartProxy (ctx context.Context, req *pb.StartProxyRequest)(*pb.StartProxyResponse, error) {
   subdomain := req.GetSubdomain()
   port := req.GetPort()
 
@@ -53,7 +54,22 @@ func (s *server) RequestTunnel (ctx context.Context, req *pb.RequestTunnelReques
   }
 
   log.Printf("Received mapping request for: %v -> %v", subdomain, port )
-  return &pb.RequestTunnelResponse{ Port: 4567 }, nil
+  return &pb.StartProxyResponse{ Port: 4567 }, nil
+}
+
+func (s *server) EndProxy (ctx context.Context, req *pb.EndProxyRequest)(*emptypb.Empty, error) {
+  subdomain := req.GetSubdomain()
+  redisClient := utils.GetRedisClient()
+	context := context.Background()
+  key := fmt.Sprintf( "kengrok-map:%s", subdomain )
+
+  _, err := redisClient.Del( context, key ).Result()
+
+  if err != nil {
+    return nil, status.Error( codes.Internal, "Error removing mapping" )
+  }
+
+  return &emptypb.Empty{}, nil
 }
 
 func main() {
@@ -64,7 +80,7 @@ func main() {
   }
 
   s := grpc.NewServer()
-  pb.RegisterTunnelManagerServer( s, &server{} )
+  pb.RegisterProxyManagerServer( s, &server{} )
   log.Printf( "server listening at %v", lis.Addr() )
 
   if err := s.Serve( lis ); err != nil {

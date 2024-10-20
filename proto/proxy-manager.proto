@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package proxy_manager;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "proto/proxy-manager";
+
+service ProxyManager {
+  rpc StartProxy (StartProxyRequest) returns (StartProxyResponse) {}
+  rpc EndProxy (EndProxyRequest) returns (google.protobuf.Empty){}
+}
+
+message EndProxyRequest {
+  string subdomain = 1;
+}
+
+message StartProxyRequest {
+  string subdomain = 1;
+  int32 port = 2;
+}
+
+message StartProxyResponse {
+  int32 port = 1;
+}

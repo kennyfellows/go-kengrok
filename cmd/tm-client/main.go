@@ -12,10 +12,8 @@ import (
   "time"
   "strconv"
 
-  "google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc"
-	pb "go-kengrok/proto/tunnel-manager"
 	"golang.org/x/crypto/ssh"
+  "go-kengrok/utils"
 )
 
 type ReverseTunnel struct {
@@ -52,12 +50,15 @@ func (tun *ReverseTunnel) Start( subdomain string ) (int, error) {
 		log.Fatalf("Failed to parse port number: %v", err)
 	}
 
-	// Convert to int32
-	port := int32(portInt)
-  makePortMapRequest( subdomain, port )
+	log.Printf("Reverse tunnel established on remote port: %v", portInt )
 
-	log.Printf("Reverse tunnel established on remote port: %v", port)
+  err = makePortMapRequest( subdomain, portInt )
 
+  if err != nil {
+    log.Fatalf( "Failed to start proxy %v", err )
+  }
+
+  bindCleanupEvent( subdomain )
 
 	for {
 		remoteConn, err := listener.Accept()
@@ -73,31 +74,19 @@ func (tun *ReverseTunnel) Start( subdomain string ) (int, error) {
 	}
 }
 
-func makePortMapRequest( subdomain string, port int32 ) {
-  conn, err := grpc.NewClient("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+func makePortMapRequest( subdomain string, port int ) error  {
 
-  if err != nil {
-    fmt.Println( "Error connecting to grpc server ", err.Error() )
-  }
-
-  defer conn.Close()
-
-  c := pb.NewTunnelManagerClient(conn)
-
-  ctx, cancel := context.WithTimeout( context.Background(), time.Second )
+  ctx, cancel := context.WithTimeout( context.Background(), 3 * time.Second )
 
   defer cancel()
 
-  r, err := c.RequestTunnel( ctx, &pb.RequestTunnelRequest{
-    Subdomain: subdomain,
-    Port: port,
-  })
+  pClient, err := utils.GetProxyManagerClient()
 
   if err != nil {
-    log.Fatalf("could not create tunnel: %v", err)
+    return err
   }
 
-  log.Printf("Tunnel created: %v", r.GetPort() )
+  return pClient.StartProxyMapping( ctx, subdomain, port )
 }
 
 func (tun *ReverseTunnel) handleConnection(remoteConn net.Conn) {
@@ -132,8 +121,47 @@ func getSSHKey(keyPath string) ssh.AuthMethod {
 	return ssh.PublicKeys(signer)
 }
 
+func cleanupPortMapping( subdomain string ) {
+  ctx, cancel := context.WithTimeout( context.Background(), 3 * time.Second )
+
+  defer cancel()
+
+  pClient, err := utils.GetProxyManagerClient()
+
+  if err != nil {
+    log.Fatalf( "Error getting proxy manager client: %v", err )
+  }
+
+  err = pClient.EndProxyMapping( ctx, subdomain )
+
+  if err != nil {
+    log.Fatalf( "Error ending proxy mapping on server: %v",  err )
+  }
+}
+
+func bindCleanupEvent( subdomain string ) {
+  c := make(chan os.Signal, 1)
+  signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+  go func() {
+    <-c
+    fmt.Println("\nReceived termination signal")
+    cleanupPortMapping( subdomain )
+    os.Exit(0)
+  }()
+}
+
 func main() {
-  subdomain := os.Args[1]
+
+  if len( os.Args ) < 2 {
+    log.Fatal("Must provide a local port as first argument")
+  }
+
+  if len( os.Args ) < 3 {
+    log.Fatal("Must provide a subdomain")
+  }
+
+  localPort := os.Args[1]
+  subdomain := os.Args[2]
 
 	keyPath := "/Users/kfellows/.ssh/id_rsa"
 	authMethod := getSSHKey(keyPath)
@@ -146,10 +174,11 @@ func main() {
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
+  localDest := fmt.Sprintf( "localhost:%v", localPort )
 	tunnel := &ReverseTunnel{
 		RemoteHost: "10.0.0.187",
 		RemotePort: 22,
-		LocalHost:  "localhost:3333",
+		LocalHost:  localDest,
 		SSHConfig:  sshConfig,
 	}
 
@@ -168,6 +197,7 @@ func main() {
 	// Wait for the tunnel to be ready and print the port
 	port := <-ready
 	fmt.Printf("Tunnel established on remote port: %d\n", port)
+
 
 	// Keep the main goroutine running and handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)
