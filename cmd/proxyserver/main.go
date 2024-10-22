@@ -112,8 +112,6 @@ func (s *Server) proxyRequest(sourceConn net.Conn, dstConn net.Conn) {
   defer sourceConn.Close()
 
   go io.Copy(dstConn, sourceConn)
-
-  // Copy response back to source
   io.Copy(sourceConn, dstConn)
 }
 
@@ -126,7 +124,7 @@ func (s *Server) handleRequest(conn net.Conn) {
   reader := bufio.NewReader(conn)
 
   fmt.Println("Parsing the headers")
-  // Parse headers but don't consume them (we'll let proxyRequest handle that)
+
   headers, headerBytes, err := parseHeaders(reader)
 
   fmt.Println("Done Parsing the headers")
@@ -142,7 +140,6 @@ func (s *Server) handleRequest(conn net.Conn) {
 
   if err != nil {
     fmt.Printf("Error parsing subdomain: %v\n", err)
-    // Even with an error, we'll continue with the proxy
   }
 
   if subdomain == "" {
@@ -151,7 +148,7 @@ func (s *Server) handleRequest(conn net.Conn) {
   }
 
   // Reset the connection's read deadline for the proxy operation
-  conn.SetReadDeadline(time.Time{}) // Removes the deadline
+  conn.SetReadDeadline(time.Time{})
 
   proxyPort, err := s.getPortMapping(subdomain)
 
@@ -170,7 +167,7 @@ func (s *Server) handleRequest(conn net.Conn) {
 
   _, err = dstConn.Write(headerBytes)
 
-  s.proxyRequest(conn, dstConn) // Using hardcoded port for testing
+  s.proxyRequest(conn, dstConn)
 }
 
 func sendBadRequestResponse(conn net.Conn, msg string) {
@@ -205,10 +202,8 @@ func parseHeaders(reader *bufio.Reader) (map[string]string, []byte, error) {
 
     headerBytes = append(headerBytes, line...)
 
-    // Strip trailing \r\n
     trimmed := bytes.TrimRight(line, "\r\n")
 
-    // Empty line means end of headers
     if len(trimmed) == 0 {
       break
     }
