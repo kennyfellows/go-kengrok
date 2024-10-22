@@ -3,9 +3,10 @@ package clicommands
 import (
 	"fmt"
 	"log"
-	"strconv"
+	"path/filepath"
+	"os"
+	"os/exec"
 
-	"github.com/kennyfellows/go-kengrok/internal/reversetunneler"
 	"github.com/spf13/cobra"
 )
 
@@ -14,25 +15,26 @@ var startCmd = &cobra.Command{
   Short: "Start a new proxy tunnel",
   Args:  cobra.ExactArgs(2),
   RunE: func(cmd *cobra.Command, args []string) error {
-
-    port, err := strconv.Atoi(args[0])
-
-    if err != nil {
-      return fmt.Errorf("invalid port number: %s", args[0])
-    }
-
+    port := args[0]
     subdomain := args[1]
 
-    if port < 1 || port > 65535 {
-      return fmt.Errorf("port must be between 1 and 65535")
+    execPath, err := os.Executable()
+    if err != nil {
+      return fmt.Errorf("Failed to get executable path: %v", err)
     }
 
-    fmt.Printf("Starting proxy: port=%d, subdomain=%s\n", port, subdomain)
+    scriptPath := filepath.Join( filepath.Dir(execPath), "start_tunnel")
 
-    err = reversetunneler.StartTunnel( port, subdomain )
+    command := exec.Command("bash", scriptPath, port, subdomain)
+
+    command.Stdout = os.Stdout
+    command.Stderr = os.Stderr
+    command.Stdin  = os.Stdin
+
+    err = command.Run()
 
     if err != nil {
-      log.Fatalf("Error starting tunnel %v", err)
+      log.Fatalf("Script execution failed: %v", err)
     }
 
     return nil
