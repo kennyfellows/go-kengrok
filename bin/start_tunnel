@@ -1,0 +1,53 @@
+#!/bin/bash
+
+LOCAL_PORT=$1
+SUBDOMAIN=$2
+
+# Configuration
+REMOTE_HOST="10.0.0.187"
+REMOTE_USER="kennyfellows"
+REDIS_CONTAINER="redis"  # Name of your Redis container on remote server
+REDIS_KEY="kengrok-map:${SUBDOMAIN}"
+
+# Function to find a random open port on remote server
+find_open_port() {
+  # Get a random port between 10000 and 65535
+  remote_port=$(ssh $REMOTE_USER@$REMOTE_HOST 'comm -23 <(seq 10000 65535 | sort) <(ss -tan | awk "{print $4}" | cut -d":" -f2 | sort -u) | shuf | head -n 1')
+  echo $remote_port
+}
+
+# Function to cleanup when script exits
+cleanup() {
+  echo "Cleaning up..."
+  # Remove port from Redis using the kengrok-map:<subdomain> key
+  ssh $REMOTE_USER@$REMOTE_HOST "docker exec $REDIS_CONTAINER redis-cli DEL ${REDIS_KEY}" > /dev/null 2>&1
+  # Kill SSH tunnel silently
+  kill $TUNNEL_PID > /dev/null 2>&1
+  exit 0
+}
+
+# Set up trap for cleanup
+trap cleanup SIGINT SIGTERM
+
+# Find an open port
+REMOTE_PORT=$(find_open_port)
+
+if [ -z "$REMOTE_PORT" ]; then
+  echo "Failed to find an open port"
+  exit 1
+fi
+
+echo "Setting up tunnel for subdomain '${SUBDOMAIN}' on remote port ${REMOTE_PORT}"
+
+# Start the SSH tunnel
+ssh -N -R $REMOTE_PORT:localhost:$LOCAL_PORT $REMOTE_USER@$REMOTE_HOST &
+TUNNEL_PID=$!
+
+# Save the port to Redis using kengrok-map:<subdomain> as the key
+ssh $REMOTE_USER@$REMOTE_HOST "docker exec $REDIS_CONTAINER redis-cli SET ${REDIS_KEY} $REMOTE_PORT"
+
+echo "Tunnel established. Subdomain '${SUBDOMAIN}' mapped to port ${REMOTE_PORT} in Redis."
+echo "Press Ctrl+C to stop the tunnel..."
+
+# Wait for the SSH tunnel process
+wait $TUNNEL_PID
