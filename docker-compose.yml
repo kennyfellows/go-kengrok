@@ -1,13 +1,19 @@
 services:
 
   kengrok:
+    container_name: kengrok
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
       - redis
+    ports:
+      - "3000:3000"
+    networks:
+      - kengrok-network
 
   nginx:
+    container_name: kengrok-nginx
     image: nginx:alpine
     ports:
       - "80:80"
@@ -19,6 +25,7 @@ services:
       - kengrok-network
 
   redis:
+    container_name: kengrok-redis
     image: redis:alpine
     ports:
       - "6379:6379"
