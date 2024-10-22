@@ -25,7 +25,7 @@ func main() {
   arguments := os.Args
   port := validateArguments( arguments )
 
-  listener, err := net.Listen( "tcp", "localhost:"+port )
+  listener, err := net.Listen( "tcp", "0.0.0.0:"+port )
   if err != nil {
     log.Fatal( "Error starting server: ", err.Error() )
   }
