@@ -11,17 +11,18 @@ REDIS_KEY="kengrok-map:${SUBDOMAIN}"
 
 # Function to find a random open port on remote server
 find_open_port() {
-  # Get a random port between 10000 and 65535
-  remote_port=$(ssh $REMOTE_USER@$REMOTE_HOST 'comm -23 <(seq 10000 65535 | sort) <(ss -tan | awk "{print $4}" | cut -d":" -f2 | sort -u) | shuf | head -n 1')
-  echo $remote_port
+  # Get random ports (we need two - one for tunnel, one for proxy)
+  remote_ports=$(ssh $REMOTE_USER@$REMOTE_HOST 'comm -23 <(seq 10000 65535 | sort) <(ss -tan | awk "{print $4}" | cut -d":" -f2 | sort -u) | shuf | head -n 2')
+  echo $remote_ports
 }
 
 # Function to cleanup when script exits
 cleanup() {
   echo "Cleaning up..."
-  # Remove port from Redis using the kengrok-map:<subdomain> key
+  # Remove port from Redis
   ssh $REMOTE_USER@$REMOTE_HOST "docker exec $REDIS_CONTAINER redis-cli DEL ${REDIS_KEY}" > /dev/null 2>&1
-  # Kill SSH tunnel silently
+  # Kill SSH tunnel and socat
+  ssh $REMOTE_USER@$REMOTE_HOST "pkill -f 'socat.*:${PROXY_PORT}'" > /dev/null 2>&1
   kill $TUNNEL_PID > /dev/null 2>&1
   exit 0
 }
@@ -29,24 +30,30 @@ cleanup() {
 # Set up trap for cleanup
 trap cleanup SIGINT SIGTERM
 
-# Find an open port
-REMOTE_PORT=$(find_open_port)
+# Find two open ports
+PORTS=($(find_open_port))
+TUNNEL_PORT=${PORTS[0]}
+PROXY_PORT=${PORTS[1]}
 
-if [ -z "$REMOTE_PORT" ]; then
-  echo "Failed to find an open port"
+if [ -z "$TUNNEL_PORT" ] || [ -z "$PROXY_PORT" ]; then
+  echo "Failed to find open ports"
   exit 1
 fi
 
-echo "Setting up tunnel for subdomain '${SUBDOMAIN}' on remote port ${REMOTE_PORT}"
+echo "Setting up tunnel for subdomain '${SUBDOMAIN}'"
 
-# Start the SSH tunnel
-ssh -N -R $REMOTE_PORT:localhost:$LOCAL_PORT $REMOTE_USER@$REMOTE_HOST &
+# Start the SSH tunnel to localhost first
+ssh -N -R localhost:$TUNNEL_PORT:localhost:$LOCAL_PORT $REMOTE_USER@$REMOTE_HOST &
 TUNNEL_PID=$!
 
-# Save the port to Redis using kengrok-map:<subdomain> as the key
-ssh $REMOTE_USER@$REMOTE_HOST "docker exec $REDIS_CONTAINER redis-cli SET ${REDIS_KEY} $REMOTE_PORT"
+# Start socat on the remote host to forward from all interfaces to localhost
+ssh $REMOTE_USER@$REMOTE_HOST "socat TCP-LISTEN:${PROXY_PORT},fork,reuseaddr TCP:localhost:${TUNNEL_PORT}" &
+SOCAT_PID=$!
 
-echo "Tunnel established. Subdomain '${SUBDOMAIN}' mapped to port ${REMOTE_PORT} in Redis."
+# Save the proxy port to Redis (this is the port that will be accessible from outside)
+ssh $REMOTE_USER@$REMOTE_HOST "docker exec $REDIS_CONTAINER redis-cli SET ${REDIS_KEY} $PROXY_PORT"
+
+echo "Tunnel established. Subdomain '${SUBDOMAIN}' mapped to port ${PROXY_PORT} in Redis."
 echo "Press Ctrl+C to stop the tunnel..."
 
 # Wait for the SSH tunnel process
