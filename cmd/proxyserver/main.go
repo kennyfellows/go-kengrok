@@ -161,6 +161,7 @@ func (s *Server) handleRequest(conn net.Conn) {
   dstConn, err := net.Dial("tcp", dstStr)
 
   if err != nil {
+    fmt.Printf("Error establishing proxy connection: %v", err)
     sendBadRequestResponse(conn, "Unable to establish proxy connection")
     return
   }
