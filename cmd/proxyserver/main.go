@@ -72,7 +72,7 @@ func ParseSubdomain(host string) (string, error) {
 
 func newRedisClient() (*redis.Client, error) {
   redisClient := redis.NewClient( &redis.Options{
-    Addr: "localhost:6379",
+    Addr: "kengrok-redis:6379",
   })
 
   ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -157,7 +157,7 @@ func (s *Server) handleRequest(conn net.Conn) {
   }
 
   fmt.Printf("Subdomain '%v' is mapped to port '%v'", subdomain, proxyPort)
-  dstStr := fmt.Sprintf("localhost:%v", proxyPort)
+  dstStr := fmt.Sprintf("host.docker.internal:%v", proxyPort)
   dstConn, err := net.Dial("tcp", dstStr)
 
   if err != nil {

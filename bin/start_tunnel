@@ -6,7 +6,7 @@ SUBDOMAIN=$2
 # Configuration
 REMOTE_HOST="10.0.0.187"
 REMOTE_USER="kennyfellows"
-REDIS_CONTAINER="redis"  # Name of your Redis container on remote server
+REDIS_CONTAINER="kengrok-redis"
 REDIS_KEY="kengrok-map:${SUBDOMAIN}"
 
 # Function to find a random open port on remote server
