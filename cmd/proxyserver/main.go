@@ -1,67 +1,67 @@
 package main
 
 import (
-  "os"
-  "log"
-  "fmt"
-  "net"
   "bufio"
-  "strings"
-  "io"
-  "time"
-	"context"
-  "strconv"
   "bytes"
+  "database/sql"
+  "fmt"
+  "io"
+  "log"
+  "net"
+  "os"
+  "strings"
+  "time"
 
-  "github.com/redis/go-redis/v9"
+  _ "github.com/mattn/go-sqlite3"
 )
 
 type Server struct {
-  rc  *redis.Client
+  db  *sql.DB
   lis *net.Listener
 }
 
 func main() {
   arguments := os.Args
-  port := validateArguments( arguments )
+  port := validateArguments(arguments)
 
-  listener, err := net.Listen( "tcp", "0.0.0.0:"+port )
+  listener, err := net.Listen("tcp", "0.0.0.0:"+port)
   if err != nil {
-    log.Fatal( "Error starting server: ", err.Error() )
+    log.Fatal("Error starting server: ", err.Error())
   }
 
-  rc, err := newRedisClient()
+  db, err := newSQLiteDB()
+  if err != nil {
+    log.Fatal("Error connecting to database: ", err.Error())
+  }
 
   server := &Server{
-    rc: rc,
+    db:  db,
     lis: &listener,
   }
 
   defer listener.Close()
+  defer db.Close()
 
-  fmt.Printf( "Server lisening on %s", port )
+  fmt.Printf("Server listening on %s", port)
 
   for {
     conn, err := listener.Accept()
-
     if err != nil {
-      fmt.Println( "Error accepting request: ", err.Error() )
+      fmt.Println("Error accepting request: ", err.Error())
     }
 
     go server.handleRequest(conn)
   }
 }
 
-
 func ParseSubdomain(host string) (string, error) {
-
   if i := strings.Index(host, ":"); i != -1 {
     host = host[:i]
   }
 
   parts := strings.Split(host, ".")
 
-  if len( parts ) < 2 {
+  if len(parts) < 2 {
     return "", nil
   }
 
@@ -70,41 +70,45 @@ func ParseSubdomain(host string) (string, error) {
   return subdomain, nil
 }
 
-func newRedisClient() (*redis.Client, error) {
-  redisClient := redis.NewClient( &redis.Options{
-    Addr: "kengrok-redis:6379",
-  })
+func newSQLiteDB() (*sql.DB, error) {
+  dbPath := os.Getenv("DB_PATH")
+  if dbPath == "" {
+    dbPath = "/app/data/kengrok.db"
+  }
 
-  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+  db, err := sql.Open("sqlite3", dbPath)
+  if err != nil {
+    return nil, fmt.Errorf("error opening database: %v", err)
+  }
 
-  defer cancel()
+  // Test the connection
+  err = db.Ping()
+  if err != nil {
+    return nil, fmt.Errorf("error connecting to database: %v", err)
+  }
 
-  _, err := redisClient.Ping( ctx ).Result()
-
-  return redisClient, err
+  return db, nil
 }
 
-
 func (s *Server) getPortMapping(subdomain string) (int, error) {
-  key  := fmt.Sprintf("kengrok-map:%s", subdomain)
-  ctx  := context.Background()
-  val, _ := s.rc.Get(ctx, key).Result()
-
-  port, err := strconv.Atoi(val)
+  var port int
+  err := s.db.QueryRow("SELECT proxy_port FROM port_mappings WHERE subdomain = ?", subdomain).Scan(&port)
   if err != nil {
-    fmt.Printf("Error coverting port str to int, %v", err)
+    if err == sql.ErrNoRows {
+      return 0, fmt.Errorf("no mapping found for subdomain: %s", subdomain)
+    }
+    return 0, fmt.Errorf("error querying database: %v", err)
   }
 
   return port, nil
 }
 
-func validateArguments( arguments []string ) string {
-
-  if len( arguments ) < 2 {
+func validateArguments(arguments []string) string {
+  if len(arguments) < 2 {
     log.Fatal("Must provide a port number")
   }
 
-  return arguments[ 1 ]
+  return arguments[1]
 }
 
 func (s *Server) proxyRequest(sourceConn net.Conn, dstConn net.Conn) {
@@ -154,6 +158,7 @@ func (s *Server) handleRequest(conn net.Conn) {
 
   if err != nil {
     fmt.Printf("Error finding port mapping for subdomain: %v", err)
+    return
   }
 
   fmt.Printf("Subdomain '%v' is mapped to port '%v'", subdomain, proxyPort)
@@ -175,10 +180,10 @@ func sendBadRequestResponse(conn net.Conn, msg string) {
   errorMessage := fmt.Sprintf("Bad request: %v", msg)
 
   response := fmt.Sprintf(
-    "HTTP/1.1 400 Bad Request\r\n" +
-    "Content-Type: text/plain\r\n" +
-    "Content-Length: %d\r\n" +
-    "Connection: close\r\n" +
+    "HTTP/1.1 400 Bad Request\r\n"+
+    "Content-Type: text/plain\r\n"+
+    "Content-Length: %d\r\n"+
+    "Connection: close\r\n"+
     "\r\n%s",
     len(errorMessage),
     errorMessage,
@@ -219,4 +224,3 @@ func parseHeaders(reader *bufio.Reader) (map[string]string, []byte, error) {
 
   return headers, headerBytes, nil
 }
-
