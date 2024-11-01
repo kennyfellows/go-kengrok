@@ -35,4 +35,13 @@ USER kengrokuser
 # Update the environment to point to the SQLite database location
 ENV DB_PATH=/app/data/kengrok.db
 
+# Initialize the SQLite database with the required table
+RUN sqlite3 /app/data/kengrok.db "\
+    CREATE TABLE IF NOT EXISTS port_mappings ( \
+        subdomain TEXT PRIMARY KEY, \
+        proxy_port INTEGER, \
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP \
+    );" && \
+    chmod 644 /app/data/kengrok.db
+
 ENTRYPOINT ["/app/proxyserver", "3000"]
