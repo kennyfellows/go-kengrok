@@ -14,12 +14,25 @@ RUN make proxyserver
 
 FROM alpine:latest
 
+# Install sqlite and its dependencies
+RUN apk add --no-cache \
+    sqlite \
+    sqlite-dev \
+    && mkdir -p /data/db \
+    && chown -R nobody:nobody /data/db
+
 RUN adduser -D kengrokuser
 
 WORKDIR /app
 
 COPY --from=builder /app/bin/* /app/
 
+# Create directory for SQLite database and set permissions
+RUN mkdir -p /app/data && chown -R kengrokuser:kengrokuser /app/data
+
 USER kengrokuser
+
+# Update the environment to point to the SQLite database location
+ENV DB_PATH=/app/data/kengrok.db
 
 ENTRYPOINT ["/app/proxyserver", "3000"]

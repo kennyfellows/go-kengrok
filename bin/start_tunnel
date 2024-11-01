@@ -3,11 +3,9 @@
 LOCAL_PORT=$1
 SUBDOMAIN=$2
 
-# Configuration
 REMOTE_HOST="10.0.0.187"
 REMOTE_USER="kennyfellows"
-REDIS_CONTAINER="kengrok-redis"
-REDIS_KEY="kengrok-map:${SUBDOMAIN}"
+CONTAINER_NAME="kengrok"
 
 # Function to find a random open port on remote server
 find_open_port() {
@@ -16,11 +14,20 @@ find_open_port() {
   echo $remote_ports
 }
 
-# Function to cleanup when script exits
+init_database() {
+  ssh $REMOTE_USER@$REMOTE_HOST "docker exec $CONTAINER_NAME sqlite3 /app/data/kengrok.db <<EOF
+    CREATE TABLE IF NOT EXISTS port_mappings (
+      subdomain TEXT PRIMARY KEY,
+      proxy_port INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+EOF"
+}
+
 cleanup() {
   echo "Cleaning up..."
-  # Remove port from Redis
-  ssh $REMOTE_USER@$REMOTE_HOST "docker exec $REDIS_CONTAINER redis-cli DEL ${REDIS_KEY}" > /dev/null 2>&1
+  # Remove port from SQLite
+  ssh $REMOTE_USER@$REMOTE_HOST "docker exec $CONTAINER_NAME sqlite3 /app/data/kengrok.db \"DELETE FROM port_mappings WHERE subdomain = '${SUBDOMAIN}';\""
   # Kill SSH tunnel and socat
   ssh $REMOTE_USER@$REMOTE_HOST "pkill -f 'socat.*:${PROXY_PORT}'" > /dev/null 2>&1
   kill $TUNNEL_PID > /dev/null 2>&1
@@ -29,6 +36,8 @@ cleanup() {
 
 # Set up trap for cleanup
 trap cleanup SIGINT SIGTERM
+
+init_database
 
 # Find two open ports
 PORTS=($(find_open_port))
@@ -50,10 +59,10 @@ TUNNEL_PID=$!
 ssh $REMOTE_USER@$REMOTE_HOST "socat TCP-LISTEN:${PROXY_PORT},fork,reuseaddr TCP:localhost:${TUNNEL_PORT}" &
 SOCAT_PID=$!
 
-# Save the proxy port to Redis (this is the port that will be accessible from outside)
-ssh $REMOTE_USER@$REMOTE_HOST "docker exec $REDIS_CONTAINER redis-cli SET ${REDIS_KEY} $PROXY_PORT"
+# Save the proxy port to SQLite using docker exec
+ssh $REMOTE_USER@$REMOTE_HOST "docker exec $CONTAINER_NAME sqlite3 /app/data/kengrok.db \"INSERT OR REPLACE INTO port_mappings (subdomain, proxy_port) VALUES ('${SUBDOMAIN}', ${PROXY_PORT});\""
 
-echo "Tunnel established. Subdomain '${SUBDOMAIN}' mapped to port ${PROXY_PORT} in Redis."
+echo "Tunnel established. Subdomain '${SUBDOMAIN}' mapped to port ${PROXY_PORT} in SQLite database."
 echo "Press Ctrl+C to stop the tunnel..."
 
 # Wait for the SSH tunnel process
