@@ -1,6 +1,10 @@
 FROM golang:1.22.1-alpine AS builder
 
-RUN apk add --no-cache git make
+# Install build dependencies for SQLite
+RUN apk add --no-cache git make gcc musl-dev
+
+# Enable CGO
+ENV CGO_ENABLED=1
 
 WORKDIR /app
 
@@ -14,7 +18,7 @@ RUN make proxyserver
 
 FROM alpine:latest
 
-# Install sqlite and its dependencies
+# Install runtime dependencies for SQLite
 RUN apk add --no-cache \
     sqlite \
     sqlite-dev \

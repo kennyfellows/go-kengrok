@@ -5,4 +5,4 @@ cli:
 	go build -o bin/kengrok cmd/cli/main.go
 
 proxyserver:
-	go build -o bin/proxyserver cmd/proxyserver/main.go
+	CGO_ENABLED=1 go build -o bin/proxyserver cmd/proxyserver/main.go
