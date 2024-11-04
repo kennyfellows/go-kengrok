@@ -23,7 +23,7 @@ var startCmd = &cobra.Command{
       return fmt.Errorf("Failed to get executable path: %v", err)
     }
 
-    scriptPath := filepath.Join( filepath.Dir(execPath), "start_tunnel")
+    scriptPath := filepath.Join( filepath.Dir(execPath), "../scripts/start_tunnel")
 
     command := exec.Command("bash", scriptPath, port, subdomain)
 
