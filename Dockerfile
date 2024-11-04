@@ -43,7 +43,7 @@ ENV DB_PATH=/app/data/kengrok.db
 RUN sqlite3 /app/data/kengrok.db "\
     CREATE TABLE IF NOT EXISTS port_mappings ( \
         subdomain TEXT PRIMARY KEY, \
-        proxy_port INTEGER, \
+        proxy_port INTEGER UNIQUE, \
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP \
     );" && \
     chmod 644 /app/data/kengrok.db
